@@ -31,6 +31,7 @@ export interface PeriodCategorySplitItem {
   categoryId: string;
   memberId: string;
   percentage: number;
+  isZeroConfirmed?: boolean;
 }
 
 export interface BillingPeriodItem {
