@@ -82,11 +82,33 @@ namespace Housemate
             Application.Run();
         }
 
+        private static string GetTargetUrl()
+        {
+            string urlFile = Path.Combine(appDir, "server-url.txt");
+            if (File.Exists(urlFile))
+            {
+                try
+                {
+                    string url = File.ReadAllText(urlFile).Trim();
+                    if (!string.IsNullOrEmpty(url)) return url;
+                }
+                catch { }
+            }
+            return "http://localhost:3000";
+        }
+
         private static bool IsPortResponding()
         {
+            string targetUrl = GetTargetUrl();
+            if (!targetUrl.Contains("localhost") && !targetUrl.Contains("127.0.0.1"))
+            {
+                // Live VDS URL, no need to wait for local port
+                return true;
+            }
+
             try
             {
-                HttpWebRequest req = (HttpWebRequest)WebRequest.Create("http://localhost:3000/api/version");
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(targetUrl + "/api/version");
                 req.Timeout = 1000;
                 req.Method = "GET";
                 using (HttpWebResponse res = (HttpWebResponse)req.GetResponse())
@@ -178,11 +200,13 @@ namespace Housemate
                     }
 
                     string nativeProfileDir = Path.Combine(appDir, ".native-profile");
+                    string targetUrl = GetTargetUrl();
                     ProcessStartInfo psi = new ProcessStartInfo();
                     psi.FileName = browserPath;
                     // Native app window mode: no URL bar, no tabs, custom window size
                     psi.Arguments = string.Format(
-                        "--app=http://localhost:3000 --window-size=1280,840 --user-data-dir=\"{0}\"",
+                        "--app={0} --window-size=1280,840 --user-data-dir=\"{1}\"",
+                        targetUrl,
                         nativeProfileDir
                     );
                     psi.UseShellExecute = false;
@@ -206,7 +230,7 @@ namespace Housemate
             // Fallback: default browser
             try
             {
-                Process.Start(new ProcessStartInfo("http://localhost:3000") { UseShellExecute = true });
+                Process.Start(new ProcessStartInfo(GetTargetUrl()) { UseShellExecute = true });
             }
             catch { }
         }
