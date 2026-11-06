@@ -37,6 +37,8 @@ interface ExpenseCategoryCardProps {
     payload: { amount: number; title: string; paidById: string }
   ) => Promise<void>;
   onDeleteExpense: (expenseId: string) => void;
+  onClearCategoryPeriodExpenses: (categoryId: string) => Promise<void>;
+  onDeleteCategory: (categoryId: string) => Promise<void>;
   onConfigureCategorySplit: (categoryId: string) => void;
   onToggleZeroConfirmed: (
     categoryId: string,
@@ -55,6 +57,8 @@ export function ExpenseCategoryCard({
   onQuickAddExpense,
   onEditExpense,
   onDeleteExpense,
+  onClearCategoryPeriodExpenses,
+  onDeleteCategory,
   onConfigureCategorySplit,
   onToggleZeroConfirmed,
 }: ExpenseCategoryCardProps) {
@@ -64,6 +68,7 @@ export function ExpenseCategoryCard({
   const [editTitle, setEditTitle] = useState<string>("");
   const [editPaidById, setEditPaidById] = useState<string>("");
   const [isTogglingZero, setIsTogglingZero] = useState(false);
+  const [confirmDeleteCategory, setConfirmDeleteCategory] = useState(false);
 
   const totalAmount = periodExpenses.reduce((sum, e) => sum + e.amount, 0);
   const entryCount = periodExpenses.length;
@@ -180,7 +185,7 @@ export function ExpenseCategoryCard({
                   </span>
                 )}
               </div>
-              <div className="mt-0.5 flex items-center gap-2">
+              <div className="mt-0.5 flex flex-wrap items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => onConfigureCategorySplit(category.id)}
@@ -190,6 +195,16 @@ export function ExpenseCategoryCard({
                   {category.hasCustomSplit
                     ? "Özel Bölüşüm Oranı"
                     : "Eşit Bölüşüm"}
+                </button>
+                <span className="text-[#eecbad]">•</span>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteCategory((prev) => !prev)}
+                  title="Bu gider kalemini tamamen kaldır"
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700/80 transition hover:text-red-700 hover:underline"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <span>Kalemi Kaldır</span>
                 </button>
               </div>
             </div>
@@ -260,8 +275,33 @@ export function ExpenseCategoryCard({
           </div>
         </div>
 
-        {/* Total Amount & Quick Add Button */}
-        <div className="mt-4 flex items-baseline justify-between rounded-2xl bg-[#faf8f5] px-4 py-3 border border-[#eecbad]/80">
+        {/* Inline Confirmation when removing the entire Category Card */}
+        {confirmDeleteCategory && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs">
+            <span className="font-bold text-red-900">
+              &ldquo;{category.name}&rdquo; kalemi tamamen silinsin mi?
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onDeleteCategory(category.id)}
+                className="rounded-lg bg-red-600 px-2.5 py-1 text-[11px] font-extrabold text-white transition hover:bg-red-700"
+              >
+                Evet, Kaldır
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteCategory(false)}
+                className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-[11px] font-bold text-[#475569] hover:text-[#0f172a]"
+              >
+                Vazgeç
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Total Amount & Quick Add / Clear Expense Buttons */}
+        <div className="mt-4 flex items-center justify-between gap-2 rounded-2xl bg-[#faf8f5] px-4 py-3 border border-[#eecbad]/80">
           <div>
             <span className="block text-[11px] font-bold uppercase tracking-wider text-[#475569]">
               Dönem Toplamı
@@ -277,14 +317,31 @@ export function ExpenseCategoryCard({
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => onQuickAddExpense(category.id)}
-            className="inline-flex items-center gap-1 rounded-xl bg-[#cd853f] px-3.5 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-[#b57232] active:scale-[0.98]"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Tutar Ekle</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            {entryCount > 0 && (
+              <button
+                type="button"
+                onClick={() =>
+                  entryCount === 1
+                    ? onDeleteExpense(periodExpenses[0].id)
+                    : onClearCategoryPeriodExpenses(category.id)
+                }
+                title="Bu dönemde girilen gideri kaldır / sıfırla"
+                className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-2.5 py-2 text-xs font-extrabold text-red-700 transition hover:bg-red-100 active:scale-[0.98]"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Gideri Sil</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onQuickAddExpense(category.id)}
+              className="inline-flex items-center gap-1 rounded-xl bg-[#cd853f] px-3.5 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-[#b57232] active:scale-[0.98]"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Tutar Ekle</span>
+            </button>
+          </div>
         </div>
 
         {/* Mini 4-Month Trajectory Strip inside the Card */}
