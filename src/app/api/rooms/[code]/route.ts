@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
+  buildBillingPeriod,
   getActiveBillingPeriod,
   getSelectableHistoricalPeriods,
 } from "@/lib/billing-cycle";
@@ -8,6 +9,55 @@ import { ensureDefaultDemoRooms } from "@/lib/demo-seed";
 import { computeEqualPercentages } from "@/lib/split-calculator";
 
 export const dynamic = "force-dynamic";
+
+async function normalizeRoomPeriods(roomId: string, cycleDay: number) {
+  const activeComputed = getActiveBillingPeriod(new Date(), cycleDay);
+  const periods = await prisma.billingPeriod.findMany({
+    where: { roomId },
+    orderBy: { periodKey: "asc" },
+  });
+
+  // 1. Ensure every period's label/startDate/endDate matches its periodKey + room.cycleDay
+  // and ensure ONLY the period matching activeComputed.periodKey has isActive = true
+  const seenLabels = new Map<string, string>(); // label -> periodId
+
+  for (const p of periods) {
+    const [yStr, mStr] = p.periodKey.split("-");
+    const year = parseInt(yStr, 10);
+    const monthIndex = parseInt(mStr, 10) - 1;
+    const expected = buildBillingPeriod(year, monthIndex, cycleDay);
+    const shouldBeActive = p.periodKey === activeComputed.periodKey;
+
+    if (
+      p.label !== expected.label ||
+      p.isActive !== shouldBeActive ||
+      p.isFrozen === shouldBeActive
+    ) {
+      await prisma.billingPeriod.update({
+        where: { id: p.id },
+        data: {
+          label: expected.label,
+          startDate: expected.startDate,
+          endDate: expected.endDate,
+          isActive: shouldBeActive,
+          isFrozen: !shouldBeActive,
+        },
+      });
+    }
+
+    // Deduplicate if two different periodKeys accidentally got the same label
+    if (seenLabels.has(expected.label)) {
+      const targetId = seenLabels.get(expected.label)!;
+      await prisma.expense.updateMany({
+        where: { periodId: p.id },
+        data: { periodId: targetId },
+      });
+      await prisma.billingPeriod.delete({ where: { id: p.id } });
+    } else {
+      seenLabels.set(expected.label, p.id);
+    }
+  }
+}
 
 export async function GET(
   _req: NextRequest,
@@ -19,53 +69,40 @@ export async function GET(
       await ensureDefaultDemoRooms();
     }
 
-    const room = await prisma.room.findUnique({
+    const initialRoom = await prisma.room.findUnique({
       where: { code },
       include: {
         members: { orderBy: { joinedAt: "asc" } },
         categories: {
           orderBy: { sortOrder: "asc" },
-          include: {
-            splits: true,
-          },
+          include: { splits: true },
         },
-        periods: {
-          orderBy: { periodKey: "asc" },
-          include: {
-            periodSplits: true,
-          },
-        },
-        expenses: {
-          orderBy: { expenseDate: "desc" },
-          include: {
-            paidBy: true,
-            category: true,
-            period: true,
-          },
-        },
+        periods: true,
       },
     });
 
-    if (!room) {
+    if (!initialRoom) {
       return NextResponse.json({ error: "Oda bulunamadı." }, { status: 404 });
     }
 
     // Ensure the current active period according to cycleDay exists in DB
-    const activeComputed = getActiveBillingPeriod(new Date(), room.cycleDay);
-    const hasCurrentActivePeriod = room.periods.some(
+    const activeComputed = getActiveBillingPeriod(
+      new Date(),
+      initialRoom.cycleDay
+    );
+    const hasCurrentActivePeriod = initialRoom.periods.some(
       (p) => p.periodKey === activeComputed.periodKey
     );
 
     if (!hasCurrentActivePeriod) {
-      // Freeze previous active periods
       await prisma.billingPeriod.updateMany({
-        where: { roomId: room.id, isActive: true },
+        where: { roomId: initialRoom.id, isActive: true },
         data: { isActive: false, isFrozen: true },
       });
 
       const createdPeriod = await prisma.billingPeriod.create({
         data: {
-          roomId: room.id,
+          roomId: initialRoom.id,
           periodKey: activeComputed.periodKey,
           label: activeComputed.label,
           startDate: activeComputed.startDate,
@@ -75,10 +112,11 @@ export async function GET(
         },
       });
 
-      // Copy current category splits into the new active period snapshot
-      const equalMap = computeEqualPercentages(room.members.map((m) => m.id));
-      for (const cat of room.categories) {
-        for (const member of room.members) {
+      const equalMap = computeEqualPercentages(
+        initialRoom.members.map((m) => m.id)
+      );
+      for (const cat of initialRoom.categories) {
+        for (const member of initialRoom.members) {
           const catSplit = cat.splits.find((s) => s.memberId === member.id);
           const pct = catSplit ? catSplit.percentage : equalMap[member.id] ?? 0;
           await prisma.periodCategorySplit.create({
@@ -91,42 +129,34 @@ export async function GET(
           });
         }
       }
-
-      // Reload room periods after auto-creating active period
-      const refreshed = await prisma.room.findUnique({
-        where: { id: room.id },
-        include: {
-          members: { orderBy: { joinedAt: "asc" } },
-          categories: {
-            orderBy: { sortOrder: "asc" },
-            include: { splits: true },
-          },
-          periods: {
-            orderBy: { periodKey: "asc" },
-            include: { periodSplits: true },
-          },
-          expenses: {
-            orderBy: { expenseDate: "desc" },
-            include: { paidBy: true, category: true, period: true },
-          },
-        },
-      });
-
-      if (refreshed) {
-        return NextResponse.json({
-          room: refreshed,
-          availableHistoricalTemplates: getSelectableHistoricalPeriods(
-            refreshed.cycleDay,
-            12
-          ),
-        });
-      }
     }
+
+    // Normalize all period labels & active flags so active period never appears twice or as past
+    await normalizeRoomPeriods(initialRoom.id, initialRoom.cycleDay);
+
+    const room = await prisma.room.findUnique({
+      where: { id: initialRoom.id },
+      include: {
+        members: { orderBy: { joinedAt: "asc" } },
+        categories: {
+          orderBy: { sortOrder: "asc" },
+          include: { splits: true },
+        },
+        periods: {
+          orderBy: { periodKey: "asc" },
+          include: { periodSplits: true },
+        },
+        expenses: {
+          orderBy: { expenseDate: "desc" },
+          include: { paidBy: true, category: true, period: true },
+        },
+      },
+    });
 
     return NextResponse.json({
       room,
       availableHistoricalTemplates: getSelectableHistoricalPeriods(
-        room.cycleDay,
+        initialRoom.cycleDay,
         12
       ),
     });
@@ -171,20 +201,8 @@ export async function PATCH(
       data: updateData,
     });
 
-    // If cycleDay changed, update the label/dates of the currently active period
     if (typeof updateData.cycleDay === "number") {
-      const activePeriod = room.periods.find((p) => p.isActive);
-      const computed = getActiveBillingPeriod(new Date(), updateData.cycleDay);
-      if (activePeriod) {
-        await prisma.billingPeriod.update({
-          where: { id: activePeriod.id },
-          data: {
-            label: computed.label,
-            startDate: computed.startDate,
-            endDate: computed.endDate,
-          },
-        });
-      }
+      await normalizeRoomPeriods(room.id, updateData.cycleDay);
     }
 
     return NextResponse.json({ ok: true, room: updatedRoom });
