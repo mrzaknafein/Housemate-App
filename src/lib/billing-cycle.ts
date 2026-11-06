@@ -106,7 +106,8 @@ export function getSelectableHistoricalPeriods(
   const baseMonthIndex = parseInt(activeMonthStr, 10) - 1;
 
   const list: ComputedCyclePeriod[] = [];
-  for (let offset = 0; offset <= monthsBack; offset++) {
+  // Start from offset = 1 so only strictly PAST periods are returned (never the active period)
+  for (let offset = 1; offset <= monthsBack; offset++) {
     const d = new Date(Date.UTC(baseYear, baseMonthIndex - offset, 1));
     list.push(buildBillingPeriod(d.getUTCFullYear(), d.getUTCMonth(), cycleDay));
   }
