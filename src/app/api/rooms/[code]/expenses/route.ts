@@ -267,24 +267,39 @@ export async function DELETE(
     const code = params.code.toUpperCase();
     const { searchParams } = new URL(req.url);
     const expenseId = searchParams.get("id");
-
-    if (!expenseId) {
-      return NextResponse.json({ error: "Gider ID gerekli." }, { status: 400 });
-    }
+    const categoryId = searchParams.get("categoryId");
+    const periodId = searchParams.get("periodId");
 
     const room = await prisma.room.findUnique({ where: { code } });
     if (!room) {
       return NextResponse.json({ error: "Oda bulunamadı." }, { status: 404 });
     }
 
-    await prisma.expense.deleteMany({
-      where: {
-        id: expenseId,
-        roomId: room.id,
-      },
-    });
+    if (expenseId) {
+      await prisma.expense.deleteMany({
+        where: {
+          id: expenseId,
+          roomId: room.id,
+        },
+      });
+      return NextResponse.json({ ok: true });
+    }
 
-    return NextResponse.json({ ok: true });
+    if (categoryId && periodId) {
+      await prisma.expense.deleteMany({
+        where: {
+          roomId: room.id,
+          categoryId,
+          periodId,
+        },
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    return NextResponse.json(
+      { error: "Silinecek gider ID veya kategori/dönem bilgisi gerekli." },
+      { status: 400 }
+    );
   } catch (error) {
     console.error("Expense DELETE error:", error);
     return NextResponse.json(
