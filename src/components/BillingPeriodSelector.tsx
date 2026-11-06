@@ -41,9 +41,7 @@ export function BillingPeriodSelector({
 }: BillingPeriodSelectorProps) {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>(
-    availableHistoricalTemplates[1]?.periodKey ||
-      availableHistoricalTemplates[0]?.periodKey ||
-      ""
+    availableHistoricalTemplates[0]?.periodKey || ""
   );
   const [customYear, setCustomYear] = useState<number>(new Date().getFullYear());
   const [customMonth, setCustomMonth] = useState<number>(new Date().getMonth());
