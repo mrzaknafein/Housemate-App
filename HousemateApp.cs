@@ -12,6 +12,7 @@ namespace Housemate
     {
         private static Mutex singleInstanceMutex;
         private static Process serverProcess;
+        private static Process appWindowProcess;
         private static NotifyIcon trayIcon;
         private static ContextMenuStrip trayMenu;
         private static string appDir;
@@ -27,8 +28,8 @@ namespace Housemate
             singleInstanceMutex = new Mutex(true, "Housemate_App_Single_Instance_Mutex", out isNewInstance);
             if (!isNewInstance)
             {
-                // Already running, just open browser and exit
-                OpenBrowser();
+                // Already running, just open the native app window
+                OpenNativeAppWindow();
                 return;
             }
 
@@ -45,7 +46,7 @@ namespace Housemate
 
             // 3. Setup System Tray Icon & Context Menu
             trayMenu = new ContextMenuStrip();
-            ToolStripMenuItem itemOpen = new ToolStripMenuItem("🏠 Housemate'i Aç", null, (s, e) => OpenBrowser());
+            ToolStripMenuItem itemOpen = new ToolStripMenuItem("🏠 Housemate'i Aç", null, (s, e) => OpenNativeAppWindow());
             itemOpen.Font = new Font(itemOpen.Font, FontStyle.Bold);
             trayMenu.Items.Add(itemOpen);
 
@@ -70,10 +71,10 @@ namespace Housemate
             }
 
             trayIcon.Visible = true;
-            trayIcon.DoubleClick += (s, e) => OpenBrowser();
+            trayIcon.DoubleClick += (s, e) => OpenNativeAppWindow();
 
-            // 4. Start Server in Background Thread
-            Thread starterThread = new Thread(StartServerAndOpenBrowser);
+            // 4. Start Server and Open Native Window in Background Thread
+            Thread starterThread = new Thread(StartServerAndOpenApp);
             starterThread.IsBackground = true;
             starterThread.Start();
 
@@ -99,9 +100,9 @@ namespace Housemate
             }
         }
 
-        private static void StartServerAndOpenBrowser()
+        private static void StartServerAndOpenApp()
         {
-            // If port 3000 is not already up, launch server
+            // If port 3000 is not already up, launch Next.js server in the background
             if (!IsPortResponding())
             {
                 try
@@ -134,27 +135,80 @@ namespace Housemate
                 }
             }
 
-            // Open default browser
-            OpenBrowser();
+            // Open as Native Standalone App Window (No browser URL bar or tabs)
+            OpenNativeAppWindow();
 
-            // Show friendly notification in Windows notification center
+            // Friendly system notification
             try
             {
-                trayIcon.ShowBalloonTip(3000, "Housemate Çalışıyor", "Tarayıcınızda açıldı. Çıkış yapmak için simgeye sağ tıklayabilirsiniz.", ToolTipIcon.Info);
+                trayIcon.ShowBalloonTip(2500, "Housemate", "Uygulama penceresi açıldı. Kapatmak için pencereyi kapatabilir veya simgeye sağ tıklayabilirsiniz.", ToolTipIcon.Info);
             }
             catch { }
         }
 
-        private static void OpenBrowser()
+        private static string FindAppBrowserPath()
         {
+            string[] candidates = new string[]
+            {
+                @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                @"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\Edge\Application\msedge.exe"),
+                @"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Google\Chrome\Application\chrome.exe")
+            };
+
+            foreach (string path in candidates)
+            {
+                if (File.Exists(path)) return path;
+            }
+            return null;
+        }
+
+        private static void OpenNativeAppWindow()
+        {
+            string browserPath = FindAppBrowserPath();
+            if (browserPath != null)
+            {
+                try
+                {
+                    if (appWindowProcess != null && !appWindowProcess.HasExited)
+                    {
+                        return;
+                    }
+
+                    string nativeProfileDir = Path.Combine(appDir, ".native-profile");
+                    ProcessStartInfo psi = new ProcessStartInfo();
+                    psi.FileName = browserPath;
+                    // Native app window mode: no URL bar, no tabs, custom window size
+                    psi.Arguments = string.Format(
+                        "--app=http://localhost:3000 --window-size=1280,840 --user-data-dir=\"{0}\"",
+                        nativeProfileDir
+                    );
+                    psi.UseShellExecute = false;
+
+                    appWindowProcess = Process.Start(psi);
+
+                    if (appWindowProcess != null)
+                    {
+                        appWindowProcess.EnableRaisingEvents = true;
+                        appWindowProcess.Exited += (s, e) =>
+                        {
+                            // When user closes the native app window, cleanly shut down
+                            ExitApplication();
+                        };
+                    }
+                    return;
+                }
+                catch { }
+            }
+
+            // Fallback: default browser
             try
             {
                 Process.Start(new ProcessStartInfo("http://localhost:3000") { UseShellExecute = true });
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Tarayıcı açılamadı: " + ex.Message, "Housemate", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+            catch { }
         }
 
         private static void ExitApplication()
@@ -171,9 +225,17 @@ namespace Housemate
 
             try
             {
+                if (appWindowProcess != null && !appWindowProcess.HasExited)
+                {
+                    appWindowProcess.Kill();
+                }
+            }
+            catch { }
+
+            try
+            {
                 if (serverProcess != null && !serverProcess.HasExited)
                 {
-                    // Kill process tree
                     ProcessStartInfo killPsi = new ProcessStartInfo("taskkill", "/F /T /PID " + serverProcess.Id);
                     killPsi.CreateNoWindow = true;
                     killPsi.UseShellExecute = false;
