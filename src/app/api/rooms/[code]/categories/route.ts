@@ -228,3 +228,70 @@ export async function PUT(
     );
   }
 }
+
+/**
+ * Toggles "Fatura Bekleniyor" (isZeroConfirmed = false) vs "Bu Dönem Gider Yok / ₺0 Onaylı" (isZeroConfirmed = true)
+ * for a category in a specific period so Recharts doesn't plunge to 0 when a bill hasn't arrived yet.
+ */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { code: string } }
+) {
+  try {
+    const code = params.code.toUpperCase();
+    const body = await req.json();
+    const periodId = String(body.periodId || "");
+    const categoryId = String(body.categoryId || "");
+    const isZeroConfirmed = Boolean(body.isZeroConfirmed);
+
+    if (!periodId || !categoryId) {
+      return NextResponse.json(
+        { error: "Dönem ve kategori bilgisi gerekli." },
+        { status: 400 }
+      );
+    }
+
+    const room = await prisma.room.findUnique({
+      where: { code },
+      include: { members: true, categories: { include: { splits: true } } },
+    });
+
+    if (!room) {
+      return NextResponse.json({ error: "Oda bulunamadı." }, { status: 404 });
+    }
+
+    const equalMap = computeEqualPercentages(room.members.map((m) => m.id));
+    const cat = room.categories.find((c) => c.id === categoryId);
+
+    for (const member of room.members) {
+      const catSplit = cat?.splits.find((s) => s.memberId === member.id);
+      const pct = catSplit ? catSplit.percentage : equalMap[member.id] ?? 0;
+
+      await prisma.periodCategorySplit.upsert({
+        where: {
+          periodId_categoryId_memberId: {
+            periodId,
+            categoryId,
+            memberId: member.id,
+          },
+        },
+        update: { isZeroConfirmed },
+        create: {
+          periodId,
+          categoryId,
+          memberId: member.id,
+          percentage: pct,
+          isZeroConfirmed,
+        },
+      });
+    }
+
+    return NextResponse.json({ ok: true, isZeroConfirmed });
+  } catch (error) {
+    console.error("Category PATCH error:", error);
+    return NextResponse.json(
+      { error: "Fatura durumu güncellenirken hata oluştu." },
+      { status: 500 }
+    );
+  }
+}
