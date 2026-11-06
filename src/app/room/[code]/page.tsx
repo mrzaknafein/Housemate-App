@@ -325,6 +325,23 @@ export default function RoomDashboardPage() {
     await mutate();
   }
 
+  async function handleToggleZeroConfirmed(
+    categoryId: string,
+    isZeroConfirmed: boolean
+  ) {
+    if (!selectedPeriod) return;
+    await fetch(`/api/rooms/${roomCode}/categories`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        periodId: selectedPeriod.id,
+        categoryId,
+        isZeroConfirmed,
+      }),
+    });
+    await mutate();
+  }
+
   async function handleCreateHistoricalPeriod(
     periodKey: string
   ): Promise<string | null> {
@@ -664,6 +681,7 @@ export default function RoomDashboardPage() {
                       setSplitTargetCategoryId(catId);
                       setIsSplitModalOpen(true);
                     }}
+                    onToggleZeroConfirmed={handleToggleZeroConfirmed}
                   />
                 );
               })}
