@@ -90,6 +90,7 @@ model PeriodCategorySplit {
   categoryId String
   memberId   String
   percentage Float
+  isZeroConfirmed Boolean  @default(false) // false = if 0 TL in active period, treat as "Fatura Bekleniyor" (do not drop chart to 0); true = explicitly confirmed 0 TL
   period     BillingPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
   category   Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   member     Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
