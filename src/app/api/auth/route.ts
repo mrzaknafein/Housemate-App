@@ -278,8 +278,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geçersiz işlem." }, { status: 400 });
   } catch (error) {
     console.error("Auth POST error:", error);
+    const msg = error instanceof Error ? error.message : "Veritabani baglanti hatasi";
     return NextResponse.json(
-      { error: "Oturum işlemi sırasında bir hata oluştu." },
+      { error: `Oturum işlemi sırasında bir hata oluştu: ${msg}` },
       { status: 500 }
     );
   }
