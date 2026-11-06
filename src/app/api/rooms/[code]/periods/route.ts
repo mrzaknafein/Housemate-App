@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { buildBillingPeriod } from "@/lib/billing-cycle";
+import {
+  buildBillingPeriod,
+  getActiveBillingPeriod,
+} from "@/lib/billing-cycle";
 import { computeEqualPercentages } from "@/lib/split-calculator";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +11,7 @@ export const dynamic = "force-dynamic";
 /**
  * Allows users to manually create or activate a historical period (past month/cycle)
  * so they can enter historical bills & expenses even on a brand-new session.
+ * Rejects future periods or duplicating the currently active period as a past period.
  */
 export async function POST(
   req: NextRequest,
@@ -56,7 +60,16 @@ export async function POST(
       );
     }
 
+    const activeComputed = getActiveBillingPeriod(new Date(), room.cycleDay);
     const computed = buildBillingPeriod(year, monthIndex, room.cycleDay);
+
+    if (computed.periodKey > activeComputed.periodKey) {
+      return NextResponse.json(
+        { error: "Gelecek tarihli bir dönem geçmiş dönem olarak eklenemez." },
+        { status: 400 }
+      );
+    }
+
     const existing = room.periods.find(
       (p) => p.periodKey === computed.periodKey
     );
@@ -69,19 +82,22 @@ export async function POST(
       });
     }
 
+    const isCurrentActive = computed.periodKey === activeComputed.periodKey;
+
     const createdPeriod = await prisma.billingPeriod.create({
       data: {
         roomId: room.id,
         periodKey: computed.periodKey,
-        label: body.customLabel ? String(body.customLabel).trim() : computed.label,
+        label: body.customLabel
+          ? String(body.customLabel).trim()
+          : computed.label,
         startDate: computed.startDate,
         endDate: computed.endDate,
-        isActive: false,
-        isFrozen: true,
+        isActive: isCurrentActive,
+        isFrozen: !isCurrentActive,
       },
     });
 
-    // Initialize split snapshots for this historical period
     const equalMap = computeEqualPercentages(room.members.map((m) => m.id));
     for (const cat of room.categories) {
       for (const member of room.members) {
