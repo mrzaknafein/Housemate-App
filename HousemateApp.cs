@@ -10,6 +10,7 @@ namespace Housemate
 {
     public class Program
     {
+        private const string DEFAULT_REMOTE_URL = "http://148.135.181.63";
         private static Mutex singleInstanceMutex;
         private static Process serverProcess;
         private static Process appWindowProcess;
@@ -94,7 +95,7 @@ namespace Housemate
                 }
                 catch { }
             }
-            return "http://localhost:3000";
+            return DEFAULT_REMOTE_URL;
         }
 
         private static bool IsPortResponding()
@@ -124,8 +125,11 @@ namespace Housemate
 
         private static void StartServerAndOpenApp()
         {
-            // If port 3000 is not already up, launch Next.js server in the background
-            if (!IsPortResponding())
+            string targetUrl = GetTargetUrl();
+            bool isLocal = targetUrl.Contains("localhost") || targetUrl.Contains("127.0.0.1");
+
+            // If configured to use local server and port 3000 is not up, launch Next.js
+            if (isLocal && !IsPortResponding())
             {
                 try
                 {
@@ -141,7 +145,7 @@ namespace Housemate
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Housemate sunucusu başlatılamadı: " + ex.Message, "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Yerel Housemate sunucusu başlatılamadı: " + ex.Message, "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     ExitApplication();
                     return;
                 }
@@ -157,7 +161,7 @@ namespace Housemate
                 }
             }
 
-            // Open as Native Standalone App Window (No browser URL bar or tabs)
+            // Open as Native Standalone App Window connected to the central server
             OpenNativeAppWindow();
 
             // Friendly system notification
