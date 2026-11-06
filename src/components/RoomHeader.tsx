@@ -10,7 +10,6 @@ import {
   MessageSquareShare,
   Share2,
   SlidersHorizontal,
-  Sparkles,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -24,7 +23,7 @@ interface RoomHeaderProps {
   onOpenRoommatesModal: () => void;
   onCopyPeriodSummary: () => void;
   summaryCopied: boolean;
-  onPopulateDemoData: () => void;
+  onPopulateDemoData?: () => void;
   onLogout: () => void;
   isSyncing: boolean;
 }
@@ -37,7 +36,6 @@ export function RoomHeader({
   onOpenRoommatesModal,
   onCopyPeriodSummary,
   summaryCopied,
-  onPopulateDemoData,
   onLogout,
   isSyncing,
 }: RoomHeaderProps) {
@@ -199,17 +197,6 @@ export function RoomHeader({
             className="inline-flex items-center gap-1.5 rounded-xl border border-[#0f172a]/15 bg-[#97ffff] px-3.5 py-2.5 text-xs font-extrabold text-[#0f172a] transition hover:brightness-95"
           >
             <span>Ay Döngüsü: {room.cycleDay}. Gün</span>
-          </button>
-
-          {/* Populate Sample Data Button */}
-          <button
-            type="button"
-            onClick={onPopulateDemoData}
-            title="4 aylık örnek geçmiş veri yükle veya sıfırla"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-[#eecbad] bg-white px-3 py-2.5 text-xs font-bold text-[#475569] transition hover:border-[#cd853f] hover:text-[#0f172a]"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-[#cd853f]" />
-            <span className="hidden sm:inline">Örnek Veri</span>
           </button>
 
           {/* Switch Room / Logout */}
