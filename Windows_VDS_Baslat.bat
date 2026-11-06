@@ -47,11 +47,18 @@ goto SYNC_DB
 
 :INSTALL_DEPS
 echo Ilk kurulum yapiliyor npm install
-call npm.cmd install --omit=dev
+call npm.cmd install
 
 :SYNC_DB
 echo Veritabani senkronize ediliyor
-call npx.cmd prisma db push --skip-generate >nul 2>&1
+call npx.cmd prisma generate
+call npx.cmd prisma db push
+
+:BUILD_APP
+if not exist ".next" (
+    echo Uygulama derleniyor npm run build lutfen 1 dakika bekleyin
+    call npm.cmd run build
+)
 
 echo.
 echo ========================================================
