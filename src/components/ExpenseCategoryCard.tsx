@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Clock,
   Pencil,
   Plus,
   SlidersHorizontal,
@@ -37,6 +38,10 @@ interface ExpenseCategoryCardProps {
   ) => Promise<void>;
   onDeleteExpense: (expenseId: string) => void;
   onConfigureCategorySplit: (categoryId: string) => void;
+  onToggleZeroConfirmed: (
+    categoryId: string,
+    isZeroConfirmed: boolean
+  ) => Promise<void>;
 }
 
 export function ExpenseCategoryCard({
@@ -51,15 +56,24 @@ export function ExpenseCategoryCard({
   onEditExpense,
   onDeleteExpense,
   onConfigureCategorySplit,
+  onToggleZeroConfirmed,
 }: ExpenseCategoryCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState<string>("");
   const [editTitle, setEditTitle] = useState<string>("");
   const [editPaidById, setEditPaidById] = useState<string>("");
+  const [isTogglingZero, setIsTogglingZero] = useState(false);
 
   const totalAmount = periodExpenses.reduce((sum, e) => sum + e.amount, 0);
   const entryCount = periodExpenses.length;
+
+  const isZeroConfirmed =
+    selectedPeriod.periodSplits?.some(
+      (ps) => ps.categoryId === category.id && ps.isZeroConfirmed
+    ) ?? false;
+  const isPendingBill =
+    selectedPeriod.isActive && totalAmount === 0 && !isZeroConfirmed;
 
   const getMemberPercentage = (memberId: string): number => {
     const periodSplit = selectedPeriod.periodSplits?.find(
@@ -77,16 +91,31 @@ export function ExpenseCategoryCard({
   if (
     previousPeriodTotal !== null &&
     previousPeriodTotal > 0 &&
-    totalAmount > 0
+    (totalAmount > 0 || isZeroConfirmed)
   ) {
     trendDiffPct =
       ((totalAmount - previousPeriodTotal) / previousPeriodTotal) * 100;
   }
 
-  // Last 4 periods mini-bars for visual trajectory directly on the card
-  const sortedPeriods = [...allPeriods]
+  // Last 4 billed periods mini-bars for visual trajectory directly on the card
+  // Exclude active period if it is currently in "Pending Bill" (unconfirmed 0 TL) state
+  const billedPeriods = [...allPeriods]
     .sort((a, b) => a.periodKey.localeCompare(b.periodKey))
-    .slice(-4);
+    .filter((p) => {
+      if (!p.isActive) return true;
+      const sum = allCategoryExpenses
+        .filter((e) => e.periodId === p.id)
+        .reduce((a, b) => a + b.amount, 0);
+      const zeroConfirmedForP =
+        p.periodSplits?.some(
+          (ps) => ps.categoryId === category.id && ps.isZeroConfirmed
+        ) ?? false;
+      return sum > 0 || zeroConfirmedForP;
+    });
+
+  const sortedPeriods = (
+    billedPeriods.length > 0 ? billedPeriods : [...allPeriods]
+  ).slice(-4);
   const miniHistory = sortedPeriods.map((p) => {
     const sum = allCategoryExpenses
       .filter((e) => e.periodId === p.id)
@@ -99,6 +128,15 @@ export function ExpenseCategoryCard({
     };
   });
   const maxMiniAmount = Math.max(...miniHistory.map((m) => m.amount), 1);
+
+  async function handleToggleZero(nextVal: boolean) {
+    try {
+      setIsTogglingZero(true);
+      await onToggleZeroConfirmed(category.id, nextVal);
+    } finally {
+      setIsTogglingZero(false);
+    }
+  }
 
   function startEditing(exp: ExpenseItem) {
     setEditingId(exp.id);
@@ -159,7 +197,17 @@ export function ExpenseCategoryCard({
 
           {/* Trend Badge vs Previous Period */}
           <div className="flex flex-col items-end gap-1">
-            {trendDiffPct !== null ? (
+            {isPendingBill ? (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-[#eecbad]/60 px-2.5 py-1 text-[11px] font-extrabold text-[#0f172a] border border-[#cd853f]/50">
+                <Clock className="h-3 w-3 text-[#cd853f]" />
+                Fatura Bekleniyor
+              </span>
+            ) : totalAmount === 0 && isZeroConfirmed ? (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-[#97ffff] px-2.5 py-1 text-[11px] font-extrabold text-[#0f172a]">
+                <Check className="h-3 w-3 text-[#0f172a]" />
+                Gider Yok (₺0)
+              </span>
+            ) : trendDiffPct !== null ? (
               <span
                 className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-extrabold ${
                   trendDiffPct > 0.5
@@ -200,9 +248,17 @@ export function ExpenseCategoryCard({
             <span className="block text-[11px] font-bold uppercase tracking-wider text-[#475569]">
               Dönem Toplamı
             </span>
-            <span className="text-2xl font-extrabold tabular-nums text-[#0f172a]">
-              {formatCurrencyTRY(totalAmount)}
-            </span>
+            {isPendingBill ? (
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-extrabold text-[#cd853f]">
+                  ⏳ Fatura Bekleniyor
+                </span>
+              </div>
+            ) : (
+              <span className="text-2xl font-extrabold tabular-nums text-[#0f172a]">
+                {formatCurrencyTRY(totalAmount)}
+              </span>
+            )}
           </div>
 
           <button
@@ -214,6 +270,39 @@ export function ExpenseCategoryCard({
             <span>Tutar Ekle</span>
           </button>
         </div>
+
+        {/* Hybrid Pending Bill / Zero Confirmed Toggle Strip (shown when active period has 0 TL) */}
+        {selectedPeriod.isActive && totalAmount === 0 && (
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#eecbad] bg-[#eecbad]/25 px-3 py-2 text-[11px]">
+            <span className="font-semibold text-[#475569]">
+              {isZeroConfirmed
+                ? "Bu ay gider olmadığı (₺0) onaylandı. Grafikte ₺0 görünür."
+                : "Henüz fatura girilmedi; grafik 0'a çakılmaz."}
+            </span>
+            <button
+              type="button"
+              disabled={isTogglingZero}
+              onClick={() => handleToggleZero(!isZeroConfirmed)}
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-extrabold transition ${
+                isZeroConfirmed
+                  ? "border border-[#cd853f]/50 bg-white text-[#0f172a] hover:bg-[#eecbad]/40"
+                  : "bg-[#97ffff] text-[#0f172a] shadow-sm hover:opacity-90"
+              }`}
+            >
+              {isZeroConfirmed ? (
+                <>
+                  <Clock className="h-3 w-3 text-[#cd853f]" />
+                  <span>Fatura Bekleniyor Yap</span>
+                </>
+              ) : (
+                <>
+                  <Check className="h-3 w-3 text-[#0f172a]" />
+                  <span>Bu Ay Gider Yok (₺0)</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Mini 4-Month Trajectory Strip inside the Card */}
         {miniHistory.length > 1 && (
