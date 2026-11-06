@@ -295,3 +295,45 @@ export async function PATCH(
     );
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { code: string } }
+) {
+  try {
+    const code = params.code.toUpperCase();
+    const { searchParams } = new URL(req.url);
+    const categoryId = searchParams.get("id");
+
+    if (!categoryId) {
+      return NextResponse.json(
+        { error: "Silinecek gider kalemi ID gerekli." },
+        { status: 400 }
+      );
+    }
+
+    const room = await prisma.room.findUnique({
+      where: { code },
+      include: { categories: true },
+    });
+
+    if (!room) {
+      return NextResponse.json({ error: "Oda bulunamadı." }, { status: 404 });
+    }
+
+    await prisma.category.deleteMany({
+      where: {
+        id: categoryId,
+        roomId: room.id,
+      },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Category DELETE error:", error);
+    return NextResponse.json(
+      { error: "Gider kalemi kaldırılırken hata oluştu." },
+      { status: 500 }
+    );
+  }
+}
