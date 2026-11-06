@@ -20,6 +20,7 @@ import { BillingPeriodSelector } from "@/components/BillingPeriodSelector";
 import { ExpenseCategoryCard } from "@/components/ExpenseCategoryCard";
 import { AddExpenseModal } from "@/components/AddExpenseModal";
 import { SplitRatioModal } from "@/components/SplitRatioModal";
+import { RoommatesModal } from "@/components/RoommatesModal";
 import { CategoryAnalyticsGrid } from "@/components/CategoryAnalyticsGrid";
 import { formatCurrencyTRY } from "@/components/CategoryIcon";
 
@@ -66,6 +67,8 @@ export default function RoomDashboardPage() {
     string | undefined
   >(undefined);
   const [isCycleModalOpen, setIsCycleModalOpen] = useState(false);
+  const [isRoommatesModalOpen, setIsRoommatesModalOpen] = useState(false);
+  const [summaryCopied, setSummaryCopied] = useState(false);
 
   // Sync user identity with room members
   useEffect(() => {
@@ -201,11 +204,88 @@ export default function RoomDashboardPage() {
     await mutate();
   }
 
+  async function handleEditExpense(
+    expenseId: string,
+    payload: { amount: number; title: string; paidById: string }
+  ) {
+    await fetch(`/api/rooms/${roomCode}/expenses`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: expenseId, ...payload }),
+    });
+    await mutate();
+  }
+
   async function handleDeleteExpense(expenseId: string) {
     await fetch(`/api/rooms/${roomCode}/expenses?id=${expenseId}`, {
       method: "DELETE",
     });
     await mutate();
+  }
+
+  async function handleAddRoommate(name: string) {
+    const res = await fetch(`/api/rooms/${roomCode}/members`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      throw new Error(result.error || "Kişi eklenemedi.");
+    }
+    await mutate();
+  }
+
+  async function handleRemoveRoommate(memberId: string) {
+    const res = await fetch(`/api/rooms/${roomCode}/members?id=${memberId}`, {
+      method: "DELETE",
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      throw new Error(result.error || "Kişi silinemedi.");
+    }
+    await mutate();
+  }
+
+  function handleCopyPeriodSummary() {
+    if (!room || !selectedPeriod) return;
+    const periodExps = room.expenses.filter(
+      (e) => e.periodId === selectedPeriod.id
+    );
+
+    const catLines = room.categories
+      .map((cat) => {
+        const sum = periodExps
+          .filter((e) => e.categoryId === cat.id)
+          .reduce((a, b) => a + b.amount, 0);
+        if (sum <= 0) return null;
+        return `• ${cat.name}: ${formatCurrencyTRY(sum)}`;
+      })
+      .filter(Boolean)
+      .join("\n");
+
+    const memberLines = periodSummary.memberShares
+      .map(
+        ({ member, shareAmount, paidAmount }) =>
+          `👤 ${member.name}: Dönem Payı ${formatCurrencyTRY(
+            shareAmount
+          )} (Ödediği: ${formatCurrencyTRY(paidAmount)})`
+      )
+      .join("\n");
+
+    const text = [
+      `🏠 *${room.name}* (${room.code})`,
+      `📅 *Dönem:* ${selectedPeriod.label}`,
+      `💰 *Toplam Gider:* ${formatCurrencyTRY(periodSummary.totalPeriodAmount)}`,
+      catLines ? `\n*Gider Kalemleri:*\n${catLines}` : "",
+      `\n*Kişi Başı Düşen Paylar:*\n${memberLines}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    navigator.clipboard.writeText(text);
+    setSummaryCopied(true);
+    setTimeout(() => setSummaryCopied(false), 2500);
   }
 
   async function handleSaveSplits(payload: {
@@ -316,6 +396,9 @@ export default function RoomDashboardPage() {
             setIsSplitModalOpen(true);
           }}
           onOpenCycleModal={() => setIsCycleModalOpen(true)}
+          onOpenRoommatesModal={() => setIsRoommatesModalOpen(true)}
+          onCopyPeriodSummary={handleCopyPeriodSummary}
+          summaryCopied={summaryCopied}
           onPopulateDemoData={handlePopulateDemoData}
           onLogout={handleLogout}
           isSyncing={isValidating}
@@ -380,16 +463,25 @@ export default function RoomDashboardPage() {
                   Bu Dönem Kişi Başı Düşen Toplam Paylar (Kategori Oranlarına Göre)
                 </h2>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSplitTargetCategoryId(undefined);
-                  setIsSplitModalOpen(true);
-                }}
-                className="text-xs font-extrabold text-[#cd853f] underline underline-offset-2 hover:text-[#b57232]"
-              >
-                Oranları Özelleştir (%)
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsRoommatesModalOpen(true)}
+                  className="text-xs font-extrabold text-[#0f172a] underline decoration-[#eecbad] underline-offset-2 hover:text-[#cd853f]"
+                >
+                  + Ev/Yurt Arkadaşı Ekle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSplitTargetCategoryId(undefined);
+                    setIsSplitModalOpen(true);
+                  }}
+                  className="text-xs font-extrabold text-[#cd853f] underline underline-offset-2 hover:text-[#b57232]"
+                >
+                  Oranları Özelleştir (%)
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
@@ -497,19 +589,16 @@ export default function RoomDashboardPage() {
           <div className="space-y-10">
             <section className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
               {room.categories.map((category) => {
-                const catPeriodExpenses = room.expenses.filter(
-                  (e) =>
-                    e.periodId === selectedPeriod.id &&
-                    e.categoryId === category.id
+                const allCategoryExpenses = room.expenses.filter(
+                  (e) => e.categoryId === category.id
+                );
+                const catPeriodExpenses = allCategoryExpenses.filter(
+                  (e) => e.periodId === selectedPeriod.id
                 );
 
                 const prevPeriodTotal = previousPeriod
-                  ? room.expenses
-                      .filter(
-                        (e) =>
-                          e.periodId === previousPeriod.id &&
-                          e.categoryId === category.id
-                      )
+                  ? allCategoryExpenses
+                      .filter((e) => e.periodId === previousPeriod.id)
                       .reduce((s, e) => s + e.amount, 0)
                   : null;
 
@@ -520,11 +609,14 @@ export default function RoomDashboardPage() {
                     members={room.members}
                     selectedPeriod={selectedPeriod}
                     periodExpenses={catPeriodExpenses}
+                    allCategoryExpenses={allCategoryExpenses}
+                    allPeriods={room.periods}
                     previousPeriodTotal={prevPeriodTotal}
                     onQuickAddExpense={(catId) => {
                       setDefaultExpenseCategoryId(catId);
                       setIsAddExpenseOpen(true);
                     }}
+                    onEditExpense={handleEditExpense}
                     onDeleteExpense={handleDeleteExpense}
                     onConfigureCategorySplit={(catId) => {
                       setSplitTargetCategoryId(catId);
@@ -575,6 +667,16 @@ export default function RoomDashboardPage() {
         initialCategoryId={splitTargetCategoryId}
         selectedPeriodId={selectedPeriod.id}
         onSaveSplits={handleSaveSplits}
+      />
+
+      {/* Roommates Management Modal */}
+      <RoommatesModal
+        isOpen={isRoommatesModalOpen}
+        onClose={() => setIsRoommatesModalOpen(false)}
+        roomCode={room.code}
+        members={room.members}
+        onAddMember={handleAddRoommate}
+        onRemoveMember={handleRemoveRoommate}
       />
     </main>
   );
