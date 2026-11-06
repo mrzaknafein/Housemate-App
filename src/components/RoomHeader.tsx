@@ -7,6 +7,7 @@ import {
   Copy,
   Home,
   LogOut,
+  MessageSquareShare,
   Share2,
   SlidersHorizontal,
   Sparkles,
@@ -20,6 +21,9 @@ interface RoomHeaderProps {
   currentMemberName: string;
   onOpenSplitModal: () => void;
   onOpenCycleModal: () => void;
+  onOpenRoommatesModal: () => void;
+  onCopyPeriodSummary: () => void;
+  summaryCopied: boolean;
   onPopulateDemoData: () => void;
   onLogout: () => void;
   isSyncing: boolean;
@@ -30,6 +34,9 @@ export function RoomHeader({
   currentMemberName,
   onOpenSplitModal,
   onOpenCycleModal,
+  onOpenRoommatesModal,
+  onCopyPeriodSummary,
+  summaryCopied,
   onPopulateDemoData,
   onLogout,
   isSyncing,
@@ -101,6 +108,20 @@ export function RoomHeader({
                 </span>
               </button>
 
+              {/* Copy WhatsApp / Telegram Summary Button */}
+              <button
+                type="button"
+                onClick={onCopyPeriodSummary}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#eecbad] bg-[#eecbad]/30 px-2.5 py-1 text-xs font-extrabold text-[#0f172a] transition hover:border-[#cd853f] hover:bg-[#eecbad]/60"
+              >
+                <MessageSquareShare className="h-3.5 w-3.5 text-[#cd853f]" />
+                <span>
+                  {summaryCopied
+                    ? "WhatsApp Özeti Kopyalandı ✓"
+                    : "Dönem Özetini Kopyala"}
+                </span>
+              </button>
+
               {/* Real-time Sync Status Pill */}
               <span className="inline-flex items-center gap-1.5 rounded-full bg-[#faf8f5] px-2.5 py-0.5 text-[11px] font-semibold text-[#475569] border border-[#eecbad]">
                 <span
@@ -133,7 +154,7 @@ export function RoomHeader({
 
         {/* Right: Roommates Avatars & Quick Actions */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Roommates list */}
+          {/* Roommates list + Quick Add Member Button */}
           <div className="flex items-center gap-2 rounded-2xl border border-[#eecbad] bg-[#faf8f5] px-3.5 py-2">
             <Users className="h-4 w-4 text-[#cd853f]" />
             <div className="flex flex-wrap items-center gap-1.5">
@@ -152,11 +173,12 @@ export function RoomHeader({
             </div>
             <button
               type="button"
-              onClick={handleCopyInviteLink}
-              title="Arkadaşını davet et"
-              className="ml-1 flex h-7 w-7 items-center justify-center rounded-lg bg-[#eecbad]/60 text-[#0f172a] transition hover:bg-[#cd853f] hover:text-white"
+              onClick={onOpenRoommatesModal}
+              title="Ev/Yurt arkadaşı ekle veya yönet"
+              className="ml-1 inline-flex items-center gap-1 rounded-xl bg-[#cd853f] px-2.5 py-1 text-[11px] font-extrabold text-white transition hover:bg-[#b57232]"
             >
               <UserPlus className="h-3.5 w-3.5" />
+              <span>+ Kişi</span>
             </button>
           </div>
 
