@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-stone: #faf8f5;
+  --surface-white: #ffffff;
+  --accent-peru: #cd853f;
+  --accent-cream: #eecbad;
+  --accent-cyan: #97ffff;
+  --text-dark: #0f172a;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+}
+
+html,
+body {
+  background-color: #faf8f5;
+  color: #1e293b;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom subtle scrollbars for Light Premium look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #faf8f5;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #eecbad;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #cd853f;
+}
+
+/* Strict contrast enforcement helper for #97ffff badges */
+.badge-cyan-contrast {
+  background-color: #97ffff;
+  color: #0f172a !important;
+}
