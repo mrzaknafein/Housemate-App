@@ -1,0 +1,7 @@
+node_modules
+.next
+.git
+data
+prisma/*.db
+prisma/*.db-journal
+npm-debug.log
