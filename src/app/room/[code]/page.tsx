@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import {
   BarChart3,
+  Eye,
+  EyeOff,
   LayoutGrid,
   Plus,
   Sparkles,
@@ -69,6 +71,22 @@ export default function RoomDashboardPage() {
   const [isCycleModalOpen, setIsCycleModalOpen] = useState(false);
   const [isRoommatesModalOpen, setIsRoommatesModalOpen] = useState(false);
   const [summaryCopied, setSummaryCopied] = useState(false);
+  const [showPaidOutRow, setShowPaidOutRow] = useState<boolean>(true);
+
+  useEffect(() => {
+    const savedPref = localStorage.getItem("hm_show_paid_row");
+    if (savedPref !== null) {
+      setShowPaidOutRow(savedPref === "true");
+    }
+  }, []);
+
+  function toggleShowPaidOutRow() {
+    setShowPaidOutRow((prev) => {
+      const next = !prev;
+      localStorage.setItem("hm_show_paid_row", String(next));
+      return next;
+    });
+  }
 
   // Sync user identity with room members
   useEffect(() => {
@@ -463,7 +481,29 @@ export default function RoomDashboardPage() {
                   Bu Dönem Kişi Başı Düşen Toplam Paylar (Kategori Oranlarına Göre)
                 </h2>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={toggleShowPaidOutRow}
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] font-bold transition ${
+                    showPaidOutRow
+                      ? "border-[#cd853f]/40 bg-[#eecbad]/35 text-[#0f172a]"
+                      : "border-[#eecbad] bg-[#faf8f5] text-[#475569]"
+                  }`}
+                  title="Kasadan ödediği tutar bilgisini göster veya gizle"
+                >
+                  {showPaidOutRow ? (
+                    <>
+                      <Eye className="h-3.5 w-3.5 text-[#cd853f]" />
+                      <span>Kasadan Ödeneni Gizle</span>
+                    </>
+                  ) : (
+                    <>
+                      <EyeOff className="h-3.5 w-3.5 text-[#475569]" />
+                      <span>Kasadan Ödeneni Göster</span>
+                    </>
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsRoommatesModalOpen(true)}
@@ -523,12 +563,14 @@ export default function RoomDashboardPage() {
                         </span>
                       </div>
 
-                      <div className="mt-2 border-t border-[#eecbad] pt-2 text-[11px] font-medium text-[#475569]">
-                        Bu dönem kasadan ödediği:{" "}
-                        <strong className="font-bold text-[#cd853f]">
-                          {formatCurrencyTRY(paidAmount)}
-                        </strong>
-                      </div>
+                      {showPaidOutRow && (
+                        <div className="mt-2 border-t border-[#eecbad] pt-2 text-[11px] font-medium text-[#475569]">
+                          Bu dönem kasadan ödediği:{" "}
+                          <strong className="font-bold text-[#cd853f]">
+                            {formatCurrencyTRY(paidAmount)}
+                          </strong>
+                        </div>
+                      )}
                     </div>
                   );
                 }
