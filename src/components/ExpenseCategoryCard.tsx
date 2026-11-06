@@ -195,18 +195,36 @@ export function ExpenseCategoryCard({
             </div>
           </div>
 
-          {/* Trend Badge vs Previous Period */}
+          {/* Trend Badge / Interactive Pending Bill Button */}
           <div className="flex flex-col items-end gap-1">
-            {isPendingBill ? (
-              <span className="inline-flex items-center gap-1 rounded-lg bg-[#eecbad]/60 px-2.5 py-1 text-[11px] font-extrabold text-[#0f172a] border border-[#cd853f]/50">
-                <Clock className="h-3 w-3 text-[#cd853f]" />
-                Fatura Bekleniyor
-              </span>
-            ) : totalAmount === 0 && isZeroConfirmed ? (
-              <span className="inline-flex items-center gap-1 rounded-lg bg-[#97ffff] px-2.5 py-1 text-[11px] font-extrabold text-[#0f172a]">
-                <Check className="h-3 w-3 text-[#0f172a]" />
-                Gider Yok (₺0)
-              </span>
+            {selectedPeriod.isActive && totalAmount === 0 ? (
+              <button
+                type="button"
+                disabled={isTogglingZero}
+                onClick={() => handleToggleZero(!isZeroConfirmed)}
+                title={
+                  isZeroConfirmed
+                    ? "Tıklayarak 'Fatura Bekleniyor' durumuna geri alın"
+                    : "Bu ay fatura gelmeyecekse tıklayıp 'Gider Yok (₺0)' olarak onaylayın"
+                }
+                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-extrabold transition ${
+                  isZeroConfirmed
+                    ? "bg-[#97ffff] text-[#0f172a] border border-[#0f172a]/15 hover:brightness-95"
+                    : "bg-[#eecbad]/60 text-[#0f172a] border border-[#cd853f]/50 hover:bg-[#eecbad]"
+                }`}
+              >
+                {isZeroConfirmed ? (
+                  <>
+                    <Check className="h-3 w-3 text-[#0f172a]" />
+                    <span>Gider Yok (₺0)</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock className="h-3 w-3 text-[#cd853f]" />
+                    <span>Fatura Bekleniyor</span>
+                  </>
+                )}
+              </button>
             ) : trendDiffPct !== null ? (
               <span
                 className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-extrabold ${
@@ -249,11 +267,9 @@ export function ExpenseCategoryCard({
               Dönem Toplamı
             </span>
             {isPendingBill ? (
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-extrabold text-[#cd853f]">
-                  ⏳ Fatura Bekleniyor
-                </span>
-              </div>
+              <span className="text-lg font-extrabold text-[#cd853f]">
+                ⏳ Fatura Bekleniyor
+              </span>
             ) : (
               <span className="text-2xl font-extrabold tabular-nums text-[#0f172a]">
                 {formatCurrencyTRY(totalAmount)}
@@ -270,39 +286,6 @@ export function ExpenseCategoryCard({
             <span>Tutar Ekle</span>
           </button>
         </div>
-
-        {/* Hybrid Pending Bill / Zero Confirmed Toggle Strip (shown when active period has 0 TL) */}
-        {selectedPeriod.isActive && totalAmount === 0 && (
-          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#eecbad] bg-[#eecbad]/25 px-3 py-2 text-[11px]">
-            <span className="font-semibold text-[#475569]">
-              {isZeroConfirmed
-                ? "Bu ay gider olmadığı (₺0) onaylandı. Grafikte ₺0 görünür."
-                : "Henüz fatura girilmedi; grafik 0'a çakılmaz."}
-            </span>
-            <button
-              type="button"
-              disabled={isTogglingZero}
-              onClick={() => handleToggleZero(!isZeroConfirmed)}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-extrabold transition ${
-                isZeroConfirmed
-                  ? "border border-[#cd853f]/50 bg-white text-[#0f172a] hover:bg-[#eecbad]/40"
-                  : "bg-[#97ffff] text-[#0f172a] shadow-sm hover:opacity-90"
-              }`}
-            >
-              {isZeroConfirmed ? (
-                <>
-                  <Clock className="h-3 w-3 text-[#cd853f]" />
-                  <span>Fatura Bekleniyor Yap</span>
-                </>
-              ) : (
-                <>
-                  <Check className="h-3 w-3 text-[#0f172a]" />
-                  <span>Bu Ay Gider Yok (₺0)</span>
-                </>
-              )}
-            </button>
-          </div>
-        )}
 
         {/* Mini 4-Month Trajectory Strip inside the Card */}
         {miniHistory.length > 1 && (
