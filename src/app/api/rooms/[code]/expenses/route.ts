@@ -48,7 +48,6 @@ export async function POST(
     const customCategoryName = String(body.customCategoryName || "").trim();
 
     if (!categoryId && customCategoryName) {
-      // Aggregation Rule: Check case-insensitively if a category with this name already exists in the room
       const existingCategory = room.categories.find(
         (c) => c.name.toLowerCase() === customCategoryName.toLowerCase()
       );
@@ -67,7 +66,6 @@ export async function POST(
         });
         categoryId = createdCategory.id;
 
-        // Initialize default equal splits for this new custom category
         const equalMap = computeEqualPercentages(room.members.map((m) => m.id));
         for (const m of room.members) {
           const pct = equalMap[m.id] ?? 0;
@@ -79,7 +77,6 @@ export async function POST(
             },
           });
 
-          // Also add split snapshot to all existing periods
           for (const p of room.periods) {
             await prisma.periodCategorySplit.upsert({
               where: {
@@ -138,7 +135,6 @@ export async function POST(
         });
         periodId = newPeriod.id;
 
-        // Snapshot current category splits into this newly created historical period
         const equalMap = computeEqualPercentages(room.members.map((m) => m.id));
         const allCategories = await prisma.category.findMany({
           where: { roomId: room.id },
@@ -202,6 +198,62 @@ export async function POST(
     console.error("Expense POST error:", error);
     return NextResponse.json(
       { error: "Gider kaydedilirken bir hata oluştu." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { code: string } }
+) {
+  try {
+    const code = params.code.toUpperCase();
+    const body = await req.json();
+    const expenseId = String(body.id || "");
+    if (!expenseId) {
+      return NextResponse.json({ error: "Gider ID gerekli." }, { status: 400 });
+    }
+
+    const room = await prisma.room.findUnique({
+      where: { code },
+      include: { members: true },
+    });
+    if (!room) {
+      return NextResponse.json({ error: "Oda bulunamadı." }, { status: 404 });
+    }
+
+    const updateData: { amount?: number; title?: string; paidById?: string } = {};
+    if (body.amount !== undefined) {
+      const parsed = Number(body.amount);
+      if (Number.isNaN(parsed) || parsed <= 0) {
+        return NextResponse.json({ error: "Geçersiz tutar." }, { status: 400 });
+      }
+      updateData.amount = parsed;
+    }
+
+    if (typeof body.title === "string" && body.title.trim()) {
+      updateData.title = body.title.trim();
+    }
+
+    if (typeof body.paidById === "string" && body.paidById) {
+      const validMember = room.members.some((m) => m.id === body.paidById);
+      if (validMember) {
+        updateData.paidById = body.paidById;
+      }
+    }
+
+    const updated = await prisma.expense.update({
+      where: { id: expenseId },
+      data: updateData,
+      include: { paidBy: true, category: true, period: true },
+    });
+
+    return NextResponse.json({ ok: true, expense: updated });
+  } catch (error) {
+    console.error("Expense PATCH error:", error);
+    return NextResponse.json(
+      { error: "Gider güncellenirken hata oluştu." },
       { status: 500 }
     );
   }
