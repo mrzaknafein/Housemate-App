@@ -89,52 +89,7 @@ export function CategoryAnalyticsGrid({
 
   return (
     <section className="space-y-6">
-      {/* Section Header & Chart Type Switch */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-[#eecbad] bg-white p-5 shadow-sm">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-lg bg-[#97ffff] px-2.5 py-0.5 text-xs font-extrabold text-[#0f172a]">
-              HER GİDER KALEMİ İÇİN AYRI TREND ANALİZİ
-            </span>
-          </div>
-          <h2 className="mt-1.5 text-xl font-extrabold text-[#0f172a]">
-            Aylık Değişim Grafikleri & Dönemsel Karşılaştırma
-          </h2>
-          <p className="text-xs text-[#475569]">
-            Kira, Elektrik, Su, Doğalgaz, İnternet ve Damacana Su gibi tüm sabit
-            ve özel kalemlerin dönem bazlı değişimini ayrı ayrı inceleyin.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-1.5 rounded-2xl border border-[#eecbad] bg-[#faf8f5] p-1.5">
-          <button
-            type="button"
-            onClick={() => setChartStyle("area")}
-            className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-extrabold transition ${
-              chartStyle === "area"
-                ? "bg-[#cd853f] text-white shadow-sm"
-                : "text-[#475569] hover:text-[#0f172a]"
-            }`}
-          >
-            <LineChartIcon className="h-4 w-4" />
-            <span>Çizgi / Alan Grafiği</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setChartStyle("bar")}
-            className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-extrabold transition ${
-              chartStyle === "bar"
-                ? "bg-[#cd853f] text-white shadow-sm"
-                : "text-[#475569] hover:text-[#0f172a]"
-            }`}
-          >
-            <BarChart3 className="h-4 w-4" />
-            <span>Sütun Grafiği</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Master Overall Monthly Chart */}
+      {/* Master Overall Monthly Chart + Compact Chart Type Switch */}
       <div className="rounded-3xl border border-[#eecbad] bg-white p-6 shadow-premium">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -173,6 +128,33 @@ export function CategoryAnalyticsGrid({
                 </span>
               )}
             </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 rounded-2xl border border-[#eecbad] bg-[#faf8f5] p-1">
+            <button
+              type="button"
+              onClick={() => setChartStyle("area")}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-extrabold transition ${
+                chartStyle === "area"
+                  ? "bg-[#cd853f] text-white shadow-sm"
+                  : "text-[#475569] hover:text-[#0f172a]"
+              }`}
+            >
+              <LineChartIcon className="h-3.5 w-3.5" />
+              <span>Çizgi / Alan Grafiği</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartStyle("bar")}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-extrabold transition ${
+                chartStyle === "bar"
+                  ? "bg-[#cd853f] text-white shadow-sm"
+                  : "text-[#475569] hover:text-[#0f172a]"
+              }`}
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              <span>Sütun Grafiği</span>
+            </button>
           </div>
         </div>
 
