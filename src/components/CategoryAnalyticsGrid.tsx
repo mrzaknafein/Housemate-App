@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import {
   BarChart3,
+  Clock,
   LineChart as LineChartIcon,
   Minus,
   TrendingDown,
@@ -44,8 +45,25 @@ export function CategoryAnalyticsGrid({
     a.periodKey.localeCompare(b.periodKey)
   );
 
-  // Overall Room Total Series across periods
-  const overallData = chronologicalPeriods.map((p, idx) => {
+  // Filter out the active period from overall chart if it has 0 total expenses and is still waiting for bills
+  const overallPeriodsForChart = chronologicalPeriods.filter((p) => {
+    if (!p.isActive || chronologicalPeriods.length <= 1) return true;
+    const periodTotal = expenses
+      .filter((e) => e.periodId === p.id)
+      .reduce((acc, e) => acc + e.amount, 0);
+    if (periodTotal > 0) return true;
+    const anyConfirmedZero =
+      p.periodSplits?.some((ps) => ps.isZeroConfirmed) ?? false;
+    return anyConfirmedZero;
+  });
+
+  const effectiveOverallPeriods =
+    overallPeriodsForChart.length > 0
+      ? overallPeriodsForChart
+      : chronologicalPeriods;
+
+  // Overall Room Total Series across billed periods
+  const overallData = effectiveOverallPeriods.map((p, idx) => {
     const periodTotal = expenses
       .filter((e) => e.periodId === p.id)
       .reduce((acc, e) => acc + e.amount, 0);
@@ -270,7 +288,45 @@ export function CategoryAnalyticsGrid({
       {/* Individual Dedicated Chart Card for EVERY Expense Category */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {categories.map((cat) => {
-          const catSeries = chronologicalPeriods.map((p, idx) => {
+          const activePeriodObj = chronologicalPeriods.find((p) => p.isActive);
+          const activePeriodSum = activePeriodObj
+            ? expenses
+                .filter(
+                  (e) =>
+                    e.periodId === activePeriodObj.id && e.categoryId === cat.id
+                )
+                .reduce((a, b) => a + b.amount, 0)
+            : 0;
+          const activeZeroConfirmed = activePeriodObj
+            ? activePeriodObj.periodSplits?.some(
+                (ps) => ps.categoryId === cat.id && ps.isZeroConfirmed
+              ) ?? false
+            : false;
+          const isActivePendingForCat =
+            Boolean(activePeriodObj) &&
+            activePeriodSum === 0 &&
+            !activeZeroConfirmed;
+
+          // Exclude the unbilled active period from the chart series if there are historical periods,
+          // preventing the graph from crashing to 0 while waiting for the bill.
+          const billedPeriodsForCat = chronologicalPeriods.filter((p) => {
+            if (!p.isActive || chronologicalPeriods.length <= 1) return true;
+            const sum = expenses
+              .filter((e) => e.periodId === p.id && e.categoryId === cat.id)
+              .reduce((a, b) => a + b.amount, 0);
+            const zeroConf =
+              p.periodSplits?.some(
+                (ps) => ps.categoryId === cat.id && ps.isZeroConfirmed
+              ) ?? false;
+            return sum > 0 || zeroConf;
+          });
+
+          const effectiveCatPeriods =
+            billedPeriodsForCat.length > 0
+              ? billedPeriodsForCat
+              : chronologicalPeriods;
+
+          const catSeries = effectiveCatPeriods.map((p, idx) => {
             const catItems = expenses.filter(
               (e) => e.periodId === p.id && e.categoryId === cat.id
             );
@@ -328,38 +384,48 @@ export function CategoryAnalyticsGrid({
                   </div>
                 </div>
 
-                {/* Trend Badge */}
-                {diffPct !== null ? (
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-extrabold ${
-                      diffPct > 0.5
-                        ? "bg-amber-100 text-amber-950"
-                        : diffPct < -0.5
-                        ? "bg-[#97ffff] text-[#0f172a]"
-                        : "bg-[#eecbad]/50 text-[#0f172a]"
-                    }`}
-                  >
-                    {diffPct > 0.5 ? (
-                      <>
-                        <TrendingUp className="h-3.5 w-3.5 text-[#cd853f]" />%
-                        {Math.abs(diffPct).toFixed(0)} Artış
-                      </>
-                    ) : diffPct < -0.5 ? (
-                      <>
-                        <TrendingDown className="h-3.5 w-3.5 text-[#0f172a]" />%
-                        {Math.abs(diffPct).toFixed(0)} Azalış
-                      </>
-                    ) : (
-                      <>
-                        <Minus className="h-3.5 w-3.5" /> %0 Değişim
-                      </>
-                    )}
-                  </span>
-                ) : (
-                  <span className="rounded-lg bg-[#faf8f5] px-2.5 py-1 text-[11px] font-bold text-[#475569] border border-[#eecbad]">
-                    Tek Dönem
-                  </span>
-                )}
+                {/* Trend & Pending Bill Badges */}
+                <div className="flex flex-col items-end gap-1">
+                  {isActivePendingForCat && (
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-[#eecbad]/60 px-2 py-0.5 text-[10px] font-extrabold text-[#0f172a] border border-[#cd853f]/40">
+                      <Clock className="h-3 w-3 text-[#cd853f]" />
+                      Aktif Ay: Fatura Bekleniyor
+                    </span>
+                  )}
+                  {diffPct !== null ? (
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-extrabold ${
+                        diffPct > 0.5
+                          ? "bg-amber-100 text-amber-950"
+                          : diffPct < -0.5
+                          ? "bg-[#97ffff] text-[#0f172a]"
+                          : "bg-[#eecbad]/50 text-[#0f172a]"
+                      }`}
+                    >
+                      {diffPct > 0.5 ? (
+                        <>
+                          <TrendingUp className="h-3.5 w-3.5 text-[#cd853f]" />%
+                          {Math.abs(diffPct).toFixed(0)} Artış
+                        </>
+                      ) : diffPct < -0.5 ? (
+                        <>
+                          <TrendingDown className="h-3.5 w-3.5 text-[#0f172a]" />%
+                          {Math.abs(diffPct).toFixed(0)} Azalış
+                        </>
+                      ) : (
+                        <>
+                          <Minus className="h-3.5 w-3.5" /> %0 Değişim
+                        </>
+                      )}
+                    </span>
+                  ) : (
+                    !isActivePendingForCat && (
+                      <span className="rounded-lg bg-[#faf8f5] px-2.5 py-1 text-[11px] font-bold text-[#475569] border border-[#eecbad]">
+                        Tek Dönem
+                      </span>
+                    )
+                  )}
+                </div>
               </div>
 
               {/* Dedicated Recharts Graph */}
