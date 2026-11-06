@@ -240,6 +240,24 @@ export default function RoomDashboardPage() {
     await mutate();
   }
 
+  async function handleClearCategoryPeriodExpenses(categoryId: string) {
+    if (!selectedPeriod) return;
+    await fetch(
+      `/api/rooms/${roomCode}/expenses?categoryId=${categoryId}&periodId=${selectedPeriod.id}`,
+      {
+        method: "DELETE",
+      }
+    );
+    await mutate();
+  }
+
+  async function handleDeleteCategory(categoryId: string) {
+    await fetch(`/api/rooms/${roomCode}/categories?id=${categoryId}`, {
+      method: "DELETE",
+    });
+    await mutate();
+  }
+
   async function handleAddRoommate(name: string) {
     const res = await fetch(`/api/rooms/${roomCode}/members`, {
       method: "POST",
@@ -663,6 +681,10 @@ export default function RoomDashboardPage() {
                   }}
                   onEditExpense={handleEditExpense}
                   onDeleteExpense={handleDeleteExpense}
+                  onClearCategoryPeriodExpenses={
+                    handleClearCategoryPeriodExpenses
+                  }
+                  onDeleteCategory={handleDeleteCategory}
                   onConfigureCategorySplit={(catId) => {
                     setSplitTargetCategoryId(catId);
                     setIsSplitModalOpen(true);
