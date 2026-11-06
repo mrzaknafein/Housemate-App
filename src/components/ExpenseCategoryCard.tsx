@@ -2,14 +2,17 @@
 
 import React, { useState } from "react";
 import {
+  Check,
   ChevronDown,
   ChevronUp,
+  Pencil,
   Plus,
   SlidersHorizontal,
   Trash2,
   TrendingDown,
   TrendingUp,
   Minus,
+  X,
 } from "lucide-react";
 import {
   BillingPeriodItem,
@@ -24,8 +27,14 @@ interface ExpenseCategoryCardProps {
   members: RoomMember[];
   selectedPeriod: BillingPeriodItem;
   periodExpenses: ExpenseItem[];
+  allCategoryExpenses: ExpenseItem[];
+  allPeriods: BillingPeriodItem[];
   previousPeriodTotal: number | null;
   onQuickAddExpense: (categoryId: string) => void;
+  onEditExpense: (
+    expenseId: string,
+    payload: { amount: number; title: string; paidById: string }
+  ) => Promise<void>;
   onDeleteExpense: (expenseId: string) => void;
   onConfigureCategorySplit: (categoryId: string) => void;
 }
@@ -35,17 +44,23 @@ export function ExpenseCategoryCard({
   members,
   selectedPeriod,
   periodExpenses,
+  allCategoryExpenses,
+  allPeriods,
   previousPeriodTotal,
   onQuickAddExpense,
+  onEditExpense,
   onDeleteExpense,
   onConfigureCategorySplit,
 }: ExpenseCategoryCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState<string>("");
+  const [editTitle, setEditTitle] = useState<string>("");
+  const [editPaidById, setEditPaidById] = useState<string>("");
 
   const totalAmount = periodExpenses.reduce((sum, e) => sum + e.amount, 0);
   const entryCount = periodExpenses.length;
 
-  // Resolve split percentages for this period (using frozen periodSplits if available, otherwise category splits)
   const getMemberPercentage = (memberId: string): number => {
     const periodSplit = selectedPeriod.periodSplits?.find(
       (ps) => ps.categoryId === category.id && ps.memberId === memberId
@@ -58,7 +73,6 @@ export function ExpenseCategoryCard({
     return members.length > 0 ? Number((100 / members.length).toFixed(1)) : 100;
   };
 
-  // Trend badge vs previous period
   let trendDiffPct: number | null = null;
   if (
     previousPeriodTotal !== null &&
@@ -67,6 +81,41 @@ export function ExpenseCategoryCard({
   ) {
     trendDiffPct =
       ((totalAmount - previousPeriodTotal) / previousPeriodTotal) * 100;
+  }
+
+  // Last 4 periods mini-bars for visual trajectory directly on the card
+  const sortedPeriods = [...allPeriods]
+    .sort((a, b) => a.periodKey.localeCompare(b.periodKey))
+    .slice(-4);
+  const miniHistory = sortedPeriods.map((p) => {
+    const sum = allCategoryExpenses
+      .filter((e) => e.periodId === p.id)
+      .reduce((a, b) => a + b.amount, 0);
+    return {
+      id: p.id,
+      shortName: p.label.split(" ").slice(0, 2).join(" "),
+      amount: sum,
+      isCurrentSelected: p.id === selectedPeriod.id,
+    };
+  });
+  const maxMiniAmount = Math.max(...miniHistory.map((m) => m.amount), 1);
+
+  function startEditing(exp: ExpenseItem) {
+    setEditingId(exp.id);
+    setEditAmount(String(exp.amount));
+    setEditTitle(exp.title);
+    setEditPaidById(exp.paidById);
+  }
+
+  async function saveEdit(expenseId: string) {
+    const parsed = Number(editAmount.replace(",", "."));
+    if (Number.isNaN(parsed) || parsed <= 0) return;
+    await onEditExpense(expenseId, {
+      amount: parsed,
+      title: editTitle,
+      paidById: editPaidById,
+    });
+    setEditingId(null);
   }
 
   return (
@@ -166,6 +215,45 @@ export function ExpenseCategoryCard({
           </button>
         </div>
 
+        {/* Mini 4-Month Trajectory Strip inside the Card */}
+        {miniHistory.length > 1 && (
+          <div className="mt-3 rounded-2xl border border-[#eecbad]/60 bg-[#faf8f5]/70 px-3 py-2">
+            <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[#475569]">
+              <span>Son Dönemler Trendi</span>
+              {previousPeriodTotal !== null && previousPeriodTotal > 0 && (
+                <span>Önceki: {formatCurrencyTRY(previousPeriodTotal)}</span>
+              )}
+            </div>
+            <div className="grid grid-cols-4 gap-2 items-end h-10 pt-1">
+              {miniHistory.map((mh) => {
+                const heightPct = Math.max(
+                  18,
+                  Math.round((mh.amount / maxMiniAmount) * 100)
+                );
+                return (
+                  <div
+                    key={mh.id}
+                    className="flex flex-col items-center justify-end h-full"
+                    title={`${mh.shortName}: ${formatCurrencyTRY(mh.amount)}`}
+                  >
+                    <div
+                      style={{ height: `${heightPct}%` }}
+                      className={`w-full rounded-t-md transition-all ${
+                        mh.isCurrentSelected
+                          ? "bg-[#cd853f]"
+                          : "bg-[#eecbad] hover:bg-[#cd853f]/60"
+                      }`}
+                    />
+                    <span className="mt-1 w-full truncate text-center text-[9px] font-bold text-[#475569]">
+                      {mh.shortName.split(" ")[1] || mh.shortName}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Dynamic Per-Person Share Breakdown */}
         <div className="mt-4">
           <div className="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#475569]">
@@ -203,7 +291,7 @@ export function ExpenseCategoryCard({
         </div>
       </div>
 
-      {/* Bottom: Sub-Entries Accordion (Who Paid & Aggregated Sub-items) */}
+      {/* Bottom: Sub-Entries Accordion (Who Paid, Inline Edit & Delete) */}
       <div className="mt-4 border-t border-[#eecbad]/70 pt-3">
         {entryCount === 0 ? (
           <p className="text-center text-xs font-medium text-[#475569]">
@@ -234,42 +322,104 @@ export function ExpenseCategoryCard({
 
             {expanded && (
               <div className="mt-2.5 space-y-2 rounded-2xl bg-[#faf8f5] p-3 border border-[#eecbad]">
-                {periodExpenses.map((exp) => (
-                  <div
-                    key={exp.id}
-                    className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs border border-[#eecbad]/70 shadow-sm"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold text-[#0f172a]">
-                        {exp.title}
-                      </p>
-                      <p className="text-[11px] font-medium text-[#475569]">
-                        Ödeyen:{" "}
-                        <strong className="text-[#cd853f]">
-                          {exp.paidBy?.name}
-                        </strong>{" "}
-                        •{" "}
-                        {new Date(exp.expenseDate).toLocaleDateString("tr-TR", {
-                          day: "numeric",
-                          month: "short",
-                        })}
-                      </p>
+                {periodExpenses.map((exp) =>
+                  editingId === exp.id ? (
+                    <div
+                      key={exp.id}
+                      className="space-y-2 rounded-xl border-2 border-[#cd853f] bg-white p-2.5 text-xs"
+                    >
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="w-full rounded-lg border border-[#eecbad] bg-[#faf8f5] px-2.5 py-1.5 font-bold text-[#0f172a] outline-none"
+                        placeholder="Açıklama"
+                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editAmount}
+                          onChange={(e) => setEditAmount(e.target.value)}
+                          className="w-24 rounded-lg border border-[#eecbad] bg-[#faf8f5] px-2.5 py-1.5 font-extrabold text-[#0f172a] outline-none"
+                        />
+                        <select
+                          value={editPaidById}
+                          onChange={(e) => setEditPaidById(e.target.value)}
+                          className="flex-1 rounded-lg border border-[#eecbad] bg-[#faf8f5] px-2 py-1.5 font-bold text-[#0f172a] outline-none"
+                        >
+                          {members.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => saveEdit(exp.id)}
+                          className="rounded-lg bg-[#cd853f] p-1.5 text-white hover:bg-[#b57232]"
+                          title="Kaydet"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                          className="rounded-lg border border-[#eecbad] p-1.5 text-[#475569]"
+                          title="İptal"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold tabular-nums text-[#0f172a]">
-                        {formatCurrencyTRY(exp.amount)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteExpense(exp.id)}
-                        title="Bu gider kaydını sil"
-                        className="rounded-lg p-1 text-[#475569] transition hover:bg-red-50 hover:text-red-700"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                  ) : (
+                    <div
+                      key={exp.id}
+                      className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs border border-[#eecbad]/70 shadow-sm"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-bold text-[#0f172a]">
+                          {exp.title}
+                        </p>
+                        <p className="text-[11px] font-medium text-[#475569]">
+                          Ödeyen:{" "}
+                          <strong className="text-[#cd853f]">
+                            {exp.paidBy?.name}
+                          </strong>{" "}
+                          •{" "}
+                          {new Date(exp.expenseDate).toLocaleDateString(
+                            "tr-TR",
+                            {
+                              day: "numeric",
+                              month: "short",
+                            }
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold tabular-nums text-[#0f172a]">
+                          {formatCurrencyTRY(exp.amount)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => startEditing(exp)}
+                          title="Düzenle"
+                          className="rounded-lg p-1 text-[#475569] transition hover:bg-[#eecbad]/40 hover:text-[#0f172a]"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteExpense(exp.id)}
+                          title="Bu gider kaydını sil"
+                          className="rounded-lg p-1 text-[#475569] transition hover:bg-red-50 hover:text-red-700"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                )}
               </div>
             )}
           </div>
