@@ -1,0 +1,17 @@
+services:
+  housemate-app:
+    container_name: housemate-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - DATABASE_URL=file:/app/data/housemate.db
+      - NEXT_PUBLIC_APP_VERSION=1.0.0
+    volumes:
+      - ./data:/app/data
