@@ -1,22 +1,21 @@
 @echo off
 chcp 65001 >nul
-title Housemate - Ortak Gider Takip
+title Housemate - Ortak Gider Takip (Native Desktop App)
 cls
 echo ========================================================
-echo        HOUSEMATE - ORTAK GIDER TAKIP PLATFORMU
+echo        HOUSEMATE - YEREL MASAUSTU UYGULAMASI
 echo ========================================================
 echo.
-echo Uygulama baslatiliyor, lutfen bekleyin...
-echo Tarayiciniz otomatik olarak acilacaktir: http://localhost:3000
+echo Uygulama penceresi aciliyor, lutfen bekleyin...
 echo.
-echo Kapatmak istediginizde bu siyah pencereyi kapatmaniz yeterlidir.
+echo Kapatmak istediginizde uygulama penceresini kapatabilirsiniz.
 echo ========================================================
 echo.
 
 cd /d "%~dp0"
 
-:: Tarayıcıyı 2 saniye sonra otomatik aç
-start "" cmd /c "timeout /t 2 /nobreak >nul & start http://localhost:3000"
+:: 2 saniye sonra bağımsız yerel uygulama penceresi olarak aç
+start "" cmd /c "timeout /t 2 /nobreak >nul & start \"\" msedge.exe --app=http://localhost:3000 --window-size=1280,840 --user-data-dir=\"%~dp0.native-profile\""
 
 :: Next.js sunucusunu çalıştır
 npm.cmd run start
