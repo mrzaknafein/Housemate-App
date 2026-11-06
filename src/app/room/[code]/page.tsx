@@ -9,7 +9,6 @@ import {
   EyeOff,
   LayoutGrid,
   Plus,
-  Sparkles,
   Users,
   Wallet,
 } from "lucide-react";
@@ -596,7 +595,7 @@ export default function RoomDashboardPage() {
           </div>
         </section>
 
-        {/* 4. Navigation Tabs: Gider Kalemleri vs Aylık Değişim Grafikleri + Action Button */}
+        {/* 4. Navigation Tabs: Gider Kalemleri vs Aylık Değişim Grafikleri */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#eecbad] pb-3">
           <div className="flex items-center gap-2">
             <button
@@ -629,71 +628,50 @@ export default function RoomDashboardPage() {
               <span>Her Kalem İçin Ayrı Aylık Grafik & Analiz</span>
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setDefaultExpenseCategoryId(undefined);
-              setIsAddExpenseOpen(true);
-            }}
-            className="inline-flex items-center gap-2 rounded-2xl bg-[#cd853f] px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-[#b57232]"
-          >
-            <Sparkles className="h-4 w-4" />
-            <span>+ Yeni Gider / Hizmet Ekle (Damacana Su vb.)</span>
-          </button>
         </div>
 
-        {/* 5. Tab Content: Either Category Ledger Cards + Embedded Analytics OR Full Analytics Grid */}
+        {/* 5. Tab Content: Either Category Ledger Cards OR Full Analytics Grid */}
         {activeViewTab === "cards" ? (
-          <div className="space-y-10">
-            <section className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {room.categories.map((category) => {
-                const allCategoryExpenses = room.expenses.filter(
-                  (e) => e.categoryId === category.id
-                );
-                const catPeriodExpenses = allCategoryExpenses.filter(
-                  (e) => e.periodId === selectedPeriod.id
-                );
+          <section className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {room.categories.map((category) => {
+              const allCategoryExpenses = room.expenses.filter(
+                (e) => e.categoryId === category.id
+              );
+              const catPeriodExpenses = allCategoryExpenses.filter(
+                (e) => e.periodId === selectedPeriod.id
+              );
 
-                const prevPeriodTotal = previousPeriod
-                  ? allCategoryExpenses
-                      .filter((e) => e.periodId === previousPeriod.id)
-                      .reduce((s, e) => s + e.amount, 0)
-                  : null;
+              const prevPeriodTotal = previousPeriod
+                ? allCategoryExpenses
+                    .filter((e) => e.periodId === previousPeriod.id)
+                    .reduce((s, e) => s + e.amount, 0)
+                : null;
 
-                return (
-                  <ExpenseCategoryCard
-                    key={category.id}
-                    category={category}
-                    members={room.members}
-                    selectedPeriod={selectedPeriod}
-                    periodExpenses={catPeriodExpenses}
-                    allCategoryExpenses={allCategoryExpenses}
-                    allPeriods={room.periods}
-                    previousPeriodTotal={prevPeriodTotal}
-                    onQuickAddExpense={(catId) => {
-                      setDefaultExpenseCategoryId(catId);
-                      setIsAddExpenseOpen(true);
-                    }}
-                    onEditExpense={handleEditExpense}
-                    onDeleteExpense={handleDeleteExpense}
-                    onConfigureCategorySplit={(catId) => {
-                      setSplitTargetCategoryId(catId);
-                      setIsSplitModalOpen(true);
-                    }}
-                    onToggleZeroConfirmed={handleToggleZeroConfirmed}
-                  />
-                );
-              })}
-            </section>
-
-            {/* Also render the CategoryAnalyticsGrid directly underneath so users see all individual monthly charts immediately */}
-            <CategoryAnalyticsGrid
-              categories={room.categories}
-              periods={room.periods}
-              expenses={room.expenses}
-            />
-          </div>
+              return (
+                <ExpenseCategoryCard
+                  key={category.id}
+                  category={category}
+                  members={room.members}
+                  selectedPeriod={selectedPeriod}
+                  periodExpenses={catPeriodExpenses}
+                  allCategoryExpenses={allCategoryExpenses}
+                  allPeriods={room.periods}
+                  previousPeriodTotal={prevPeriodTotal}
+                  onQuickAddExpense={(catId) => {
+                    setDefaultExpenseCategoryId(catId);
+                    setIsAddExpenseOpen(true);
+                  }}
+                  onEditExpense={handleEditExpense}
+                  onDeleteExpense={handleDeleteExpense}
+                  onConfigureCategorySplit={(catId) => {
+                    setSplitTargetCategoryId(catId);
+                    setIsSplitModalOpen(true);
+                  }}
+                  onToggleZeroConfirmed={handleToggleZeroConfirmed}
+                />
+              );
+            })}
+          </section>
         ) : (
           <CategoryAnalyticsGrid
             categories={room.categories}
